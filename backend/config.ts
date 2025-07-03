@@ -61,7 +61,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   google: {
     name: "Google AI",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKey: "", // Add your Google AI API key here: AIza...
+    apiKey: "AIzaSyA2-4i1R-i6vRZwGqbHRVWzNSPC2GMOzIg", // Add your Google AI API key here: AIza...
     models: [
       "gemini-1.5-pro",
       "gemini-1.5-flash",
