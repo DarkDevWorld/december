@@ -10,40 +10,22 @@ const BASE_PORT = 8000;
 
 const usedPorts = new Set<number>();
 
-// Add Docker connection test
-async function testDockerConnection(): Promise<boolean> {
-  try {
-    await docker.ping();
-    console.log("✅ Docker connection successful");
-    return true;
-  } catch (error) {
-    console.error("❌ Docker connection failed:", error);
-    console.error("🔧 Please ensure Docker Desktop is running");
-    return false;
-  }
-}
-
 async function getAllAssignedPorts(): Promise<number[]> {
-  try {
-    const containers = await docker.listContainers({ all: true });
-    const projectContainers = containers.filter(
-      (container) =>
-        container.Labels?.project === "december" ||
-        container.Names?.some((name) => name.includes("dec-nextjs-"))
-    );
+  const containers = await docker.listContainers({ all: true });
+  const projectContainers = containers.filter(
+    (container) =>
+      container.Labels?.project === "december" ||
+      container.Names?.some((name) => name.includes("dec-nextjs-"))
+  );
 
-    return projectContainers
-      .map((container) => {
-        const assignedPort = container.Labels?.assignedPort
-          ? parseInt(container.Labels.assignedPort)
-          : container.Ports?.find((p) => p.PrivatePort === 3000)?.PublicPort;
-        return assignedPort || null;
-      })
-      .filter((port): port is number => port !== null);
-  } catch (error) {
-    console.error("Error getting assigned ports:", error);
-    return [];
-  }
+  return projectContainers
+    .map((container) => {
+      const assignedPort = container.Labels?.assignedPort
+        ? parseInt(container.Labels.assignedPort)
+        : container.Ports?.find((p) => p.PrivatePort === 3000)?.PublicPort;
+      return assignedPort || null;
+    })
+    .filter((port): port is number => port !== null);
 }
 
 async function findAvailablePort(
@@ -79,12 +61,6 @@ export async function getDockerfile(): Promise<string> {
 }
 
 export async function buildImage(containerId: string): Promise<string> {
-  // Test Docker connection first
-  const isConnected = await testDockerConnection();
-  if (!isConnected) {
-    throw new Error("Docker is not running or not accessible. Please start Docker Desktop and try again.");
-  }
-
   const tempDir = path.join("/tmp", `docker-app-${containerId}`);
   await fs.mkdir(tempDir, { recursive: true });
 
@@ -151,12 +127,6 @@ export async function createContainer(
   imageName: string,
   containerId: string
 ): Promise<{ container: Docker.Container; port: number }> {
-  // Test Docker connection first
-  const isConnected = await testDockerConnection();
-  if (!isConnected) {
-    throw new Error("Docker is not running or not accessible. Please start Docker Desktop and try again.");
-  }
-
   const containerName = `dec-nextjs-${containerId}`;
   const assignedPort = await findAvailablePort();
 
@@ -186,12 +156,6 @@ export async function startContainer(
   containerId: string
 ): Promise<{ port: number }> {
   try {
-    // Test Docker connection first
-    const isConnected = await testDockerConnection();
-    if (!isConnected) {
-      throw new Error("Docker is not running or not accessible. Please start Docker Desktop and try again.");
-    }
-
     const container = docker.getContainer(containerId);
     const containerInfo = await container.inspect();
 
@@ -263,48 +227,37 @@ export function getContainer(containerId: string): Docker.Container {
 export { docker };
 
 export async function listProjectContainers(): Promise<any[]> {
-  try {
-    // Test Docker connection first
-    const isConnected = await testDockerConnection();
-    if (!isConnected) {
-      throw new Error("Docker is not running or not accessible. Please start Docker Desktop and try again.");
-    }
+  const containers = await docker.listContainers({ all: true });
 
-    const containers = await docker.listContainers({ all: true });
+  const projectContainers = containers.filter(
+    (container) =>
+      container.Labels?.project === "december" ||
+      container.Names?.some((name) => name.includes("dec-nextjs-"))
+  );
 
-    const projectContainers = containers.filter(
-      (container) =>
-        container.Labels?.project === "december" ||
-        container.Names?.some((name) => name.includes("dec-nextjs-"))
-    );
+  return projectContainers.map((container) => {
+    const assignedPort = container.Labels?.assignedPort
+      ? parseInt(container.Labels.assignedPort)
+      : container.Ports?.find((p) => p.PrivatePort === 3000)?.PublicPort ||
+        null;
 
-    return projectContainers.map((container) => {
-      const assignedPort = container.Labels?.assignedPort
-        ? parseInt(container.Labels.assignedPort)
-        : container.Ports?.find((p) => p.PrivatePort === 3000)?.PublicPort ||
-          null;
-
-      return {
-        id: container.Id,
-        name: container.Names?.[0]?.replace("/", ""),
-        status: container.State,
-        image: container.Image,
-        created: new Date(container.Created * 1000).toISOString(),
-        assignedPort,
-        url: assignedPort ? `http://localhost:${assignedPort}` : null,
-        ports:
-          container.Ports?.map((port) => ({
-            private: port.PrivatePort,
-            public: port.PublicPort,
-            type: port.Type,
-          })) || [],
-        labels: container.Labels,
-      };
-    });
-  } catch (error) {
-    console.error("Error listing containers:", error);
-    throw error;
-  }
+    return {
+      id: container.Id,
+      name: container.Names?.[0]?.replace("/", ""),
+      status: container.State,
+      image: container.Image,
+      created: new Date(container.Created * 1000).toISOString(),
+      assignedPort,
+      url: assignedPort ? `http://localhost:${assignedPort}` : null,
+      ports:
+        container.Ports?.map((port) => ({
+          private: port.PrivatePort,
+          public: port.PublicPort,
+          type: port.Type,
+        })) || [],
+      labels: container.Labels,
+    };
+  });
 }
 
 export async function stopContainer(containerId: string): Promise<void> {
