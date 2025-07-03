@@ -26,7 +26,7 @@
 ## Features
 
     ✅ AI-powered project creation from natural language prompts
-    ✅ Containerized Next.js applications with Docker
+    ✅ CodeSandbox integration for instant Next.js applications
     ✅ Live preview with mobile and desktop views
     ✅ Full-featured Monaco code editor with file management
     ✅ Real-time chat assistant for development help
@@ -141,13 +141,9 @@ December supports multiple AI providers, giving you the flexibility to choose th
    - **Google AI**: [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
    - **OpenRouter**: [https://openrouter.ai/keys](https://openrouter.ai/keys)
 
-3. Install Docker
+3. **No Docker Required!** 🎉
 
-   - [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-   - [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-   - [Docker Engine for Linux](https://docs.docker.com/engine/install/)
-
-   Make sure you have Docker running and the Docker CLI installed before proceeding.
+   December now uses CodeSandbox for instant project creation and hosting. No need to install or configure Docker!
 
 4. Run the start script to set up the environment
 
@@ -204,24 +200,26 @@ If you see an error like "API key required for provider 'anthropic' but not conf
 
 AI-powered development platforms have revolutionized how we build applications. They allow developers to go from idea to working application in seconds, but most solutions are closed-source or require expensive subscriptions.
 
-Until recently, building a local alternative that matched the speed and capabilities of platforms like Loveable, Replit, or Bolt seemed challenging. The recent advances in AI and containerization technologies have made it possible to build a fast, local development environment that gives you full control over your code and API usage.
+Until recently, building a local alternative that matched the speed and capabilities of platforms like Loveable, Replit, or Bolt seemed challenging. The recent advances in AI and cloud development environments like CodeSandbox have made it possible to build a fast, accessible development environment that gives you full control over your code and API usage.
 
 I would love for this repo to become the go-to place for people who want to run their own AI-powered development environment. I've been working on this project for a while now and I'm really excited to share it with you.
 
-## Why run December locally?
+## Why use December with CodeSandbox?
 
-Building applications shouldn't require expensive subscriptions or sacrificing your privacy. December gives you the power of platforms like Loveable, Replit, and Bolt without the downsides:
+Building applications shouldn't require expensive subscriptions or complex local setup. December gives you the power of platforms like Loveable, Replit, and Bolt with the convenience of CodeSandbox:
 
-- **Full Control & Privacy** - Your code, ideas, and projects never leave your machine. No cloud storage, no data mining, no vendor lock-in
-- **Your API Keys, Your Costs** - Use your own API keys and pay only for what you use. No monthly subscriptions or usage limits imposed by third parties
-- **Complete Feature Access** - No paywalls, premium tiers, or artificial limitations. Every feature is available from day one
+- **No Local Setup Required** - No Docker installation, no complex configuration. Just run and start building
+- **Instant Project Creation** - Projects are created instantly on CodeSandbox with live preview
+- **Your API Keys, Your Costs** - Use your own API keys and pay only for what you use. No monthly subscriptions
+- **Complete Feature Access** - No paywalls, premium tiers, or artificial limitations
 - **Multiple AI Providers** - Choose from 11+ AI providers including local options like Ollama
+- **Live Collaboration** - Share your CodeSandbox projects easily with others
 
-Most cloud-based AI development platforms charge $20-100+ per month while limiting your usage and storing your intellectual property on their servers. With December, a $5 API credit can generate dozens of complete applications, and you keep full ownership of everything you create.
+Most cloud-based AI development platforms charge $20-100+ per month while limiting your usage. With December, a $5 API credit can generate dozens of complete applications, and you can share and collaborate on them instantly through CodeSandbox.
 
-The local-first approach means you can work offline, modify the platform itself, and never worry about service outages or policy changes affecting your projects. Your development environment evolves with your needs, not a company's business model.
+The CodeSandbox integration means you get instant deployment, live preview, and easy sharing without any infrastructure management. Your development environment is accessible from anywhere with just a browser.
 
-December proves that you don't need to choose between powerful AI assistance and maintaining control over your work. Run it locally, use your own API keys, and build without boundaries.
+December proves that you don't need to choose between powerful AI assistance and ease of use. Run it locally, use your own API keys, and build without boundaries.
 
 ## Contact
 

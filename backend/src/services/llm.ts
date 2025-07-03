@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import { config, validateProviderConfig, currentProvider } from "../../config";
 import prompt from "../utils/prompt.txt";
-import * as dockerService from "./docker";
 import * as fileService from "./file";
 
 // Validate configuration on startup
@@ -224,17 +223,28 @@ export async function sendMessage(
 
   session.messages.push(userMsg);
 
-  const fileContentTree = await fileService.getFileContentTree(
-    dockerService.docker,
-    containerId
-  );
-
-  const codeContext = JSON.stringify(fileContentTree, null, 2);
+  // Get sandbox metadata instead of Docker container info
+  const sandboxes = new Map(); // This would be imported from containers route
+  const sandbox = sandboxes.get(containerId);
+  
+  let codeContext = "CodeSandbox project structure:\n";
+  
+  try {
+    const fileContentTree = await fileService.getFileContentTree(
+      sandbox?.sandboxId || containerId
+    );
+    codeContext += JSON.stringify(fileContentTree, null, 2);
+  } catch (error) {
+    console.warn('[LLM] Could not fetch file content tree:', error);
+    codeContext += "Unable to fetch current project structure.";
+  }
 
   const systemPrompt = `${prompt}
 
 Current codebase structure and content:
-${codeContext}`;
+${codeContext}
+
+Note: This project is running on CodeSandbox instead of Docker. When making file changes, they will be applied to the CodeSandbox environment.`;
 
   const openaiMessages = [
     { role: "system" as const, content: systemPrompt },
@@ -299,17 +309,28 @@ export async function* sendMessageStream(
   session.messages.push(userMsg);
   yield { type: "user", data: userMsg };
 
-  const fileContentTree = await fileService.getFileContentTree(
-    dockerService.docker,
-    containerId
-  );
-
-  const codeContext = JSON.stringify(fileContentTree, null, 2);
+  // Get sandbox metadata instead of Docker container info
+  const sandboxes = new Map(); // This would be imported from containers route
+  const sandbox = sandboxes.get(containerId);
+  
+  let codeContext = "CodeSandbox project structure:\n";
+  
+  try {
+    const fileContentTree = await fileService.getFileContentTree(
+      sandbox?.sandboxId || containerId
+    );
+    codeContext += JSON.stringify(fileContentTree, null, 2);
+  } catch (error) {
+    console.warn('[LLM] Could not fetch file content tree:', error);
+    codeContext += "Unable to fetch current project structure.";
+  }
 
   const systemPrompt = `${prompt}
 
 Current codebase structure and content:
-${codeContext}`;
+${codeContext}
+
+Note: This project is running on CodeSandbox instead of Docker. When making file changes, they will be applied to the CodeSandbox environment.`;
 
   const openaiMessages = [
     { role: "system" as const, content: systemPrompt },

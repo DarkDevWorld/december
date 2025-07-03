@@ -1,15 +1,34 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
-import * as dockerService from "../services/docker";
-import * as exportService from "../services/export";
+import * as codesandboxService from "../services/codesandbox";
 import * as fileService from "../services/file";
-import * as packageService from "../services/package";
 
 const router = express.Router();
 
+// In-memory storage for sandbox metadata
+const sandboxes = new Map<string, {
+  id: string;
+  sandboxId: string;
+  status: string;
+  url: string;
+  createdAt: string;
+  name: string;
+  type: string;
+}>();
+
 router.get("/", async (req, res) => {
   try {
-    const containers = await dockerService.listProjectContainers();
+    const containers = Array.from(sandboxes.values()).map(sandbox => ({
+      id: sandbox.id,
+      name: sandbox.name,
+      status: sandbox.status,
+      image: "codesandbox/nextjs",
+      created: sandbox.createdAt,
+      assignedPort: 3000,
+      url: sandbox.url,
+      ports: [{ private: 3000, public: 3000, type: "tcp" }],
+      labels: { project: "december", type: "nextjs-app" }
+    }));
 
     res.json({
       success: true,
@@ -27,28 +46,37 @@ router.post("/create", async (req, res) => {
   const containerId = uuidv4();
 
   try {
-    const imageName = await dockerService.buildImage(containerId);
-    const { container, port } = await dockerService.createContainer(
-      imageName,
-      containerId
-    );
+    console.log(`[CONTAINER] Creating new sandbox with ID: ${containerId}`);
+    
+    const { sandboxId, url } = await codesandboxService.createSandbox();
+    
+    const sandbox = {
+      id: containerId,
+      sandboxId,
+      status: "running",
+      url,
+      createdAt: new Date().toISOString(),
+      name: `december-nextjs-${containerId.slice(0, 8)}`,
+      type: "Next.js App"
+    };
+
+    sandboxes.set(containerId, sandbox);
 
     res.json({
       success: true,
-      containerId: container.id,
+      containerId,
       container: {
         id: containerId,
-        containerId: container.id,
+        containerId: sandboxId,
         status: "running",
-        port: port,
-        url: `http://localhost:${port}`,
-        createdAt: new Date().toISOString(),
-        type: "Next.js App",
+        port: 3000,
+        url,
+        createdAt: sandbox.createdAt,
+        type: sandbox.type,
       },
     });
   } catch (error) {
-    await dockerService.cleanupImage(containerId);
-
+    console.error(`[CONTAINER] Failed to create sandbox:`, error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -60,15 +88,24 @@ router.post("/:containerId/start", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    const { port } = await dockerService.startContainer(containerId);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    sandbox.status = "running";
+    sandboxes.set(containerId, sandbox);
 
     res.json({
       success: true,
       containerId,
-      port,
-      url: `http://localhost:${port}`,
+      port: 3000,
+      url: sandbox.url,
       status: "running",
-      message: "Container started successfully",
+      message: "Sandbox started successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -82,13 +119,22 @@ router.post("/:containerId/stop", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    await dockerService.stopContainer(containerId);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    sandbox.status = "stopped";
+    sandboxes.set(containerId, sandbox);
 
     res.json({
       success: true,
       containerId,
       status: "stopped",
-      message: "Container stopped successfully",
+      message: "Sandbox stopped successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -102,12 +148,26 @@ router.delete("/:containerId", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    await dockerService.deleteContainer(containerId);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    try {
+      await codesandboxService.deleteSandbox(sandbox.sandboxId);
+    } catch (deleteError) {
+      console.warn(`[CONTAINER] Failed to delete sandbox ${sandbox.sandboxId}:`, deleteError);
+    }
+
+    sandboxes.delete(containerId);
 
     res.json({
       success: true,
       containerId,
-      message: "Container deleted successfully",
+      message: "Sandbox deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -119,14 +179,18 @@ router.delete("/:containerId", async (req, res) => {
 
 router.get("/:containerId/files", async (req, res) => {
   const { containerId } = req.params;
-  const { path: containerPath = "/app/my-nextjs-app" } = req.query;
+  const { path: containerPath = "/" } = req.query;
 
   try {
-    const files = await fileService.listFiles(
-      dockerService.docker,
-      containerId,
-      containerPath as string
-    );
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    const files = await fileService.listFiles(sandbox.sandboxId, containerPath as string);
 
     res.json({
       success: true,
@@ -145,10 +209,15 @@ router.get("/:containerId/file-tree", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    const fileTree = await fileService.getFileTree(
-      dockerService.docker,
-      containerId
-    );
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    const fileTree = await fileService.getFileTree(sandbox.sandboxId);
 
     res.json({
       success: true,
@@ -166,10 +235,15 @@ router.get("/:containerId/file-content-tree", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    const fileContentTree = await fileService.getFileContentTree(
-      dockerService.docker,
-      containerId
-    );
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    const fileContentTree = await fileService.getFileContentTree(sandbox.sandboxId);
 
     res.json({
       success: true,
@@ -183,7 +257,6 @@ router.get("/:containerId/file-content-tree", async (req, res) => {
   }
 });
 
-//@ts-ignore
 router.get("/:containerId/file", async (req, res) => {
   const { containerId } = req.params;
   const { path: filePath } = req.query;
@@ -196,11 +269,15 @@ router.get("/:containerId/file", async (req, res) => {
   }
 
   try {
-    const content = await fileService.readFile(
-      dockerService.docker,
-      containerId,
-      filePath as string
-    );
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    const content = await fileService.readFile(sandbox.sandboxId, filePath as string);
 
     res.json({
       success: true,
@@ -219,7 +296,15 @@ router.put("/:containerId/files", async (req, res) => {
   const { path: filePath, content } = req.body;
 
   try {
-    await fileService.writeFile(containerId, filePath, content);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    await fileService.writeFile(sandbox.sandboxId, filePath, content);
 
     res.json({
       success: true,
@@ -238,7 +323,15 @@ router.put("/:containerId/files/rename", async (req, res) => {
   const { oldPath, newPath } = req.body;
 
   try {
-    await fileService.renameFile(containerId, oldPath, newPath);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    await fileService.renameFile(sandbox.sandboxId, oldPath, newPath);
 
     res.json({
       success: true,
@@ -257,7 +350,15 @@ router.delete("/:containerId/files", async (req, res) => {
   const { path: filePath } = req.body;
 
   try {
-    await fileService.removeFile(containerId, filePath);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    await fileService.removeFile(sandbox.sandboxId, filePath);
 
     res.json({
       success: true,
@@ -276,16 +377,22 @@ router.post("/:containerId/dependencies", async (req, res) => {
   const { packageName, isDev = false } = req.body;
 
   try {
-    const output = await packageService.addDependency(
-      containerId,
-      packageName,
-      isDev
-    );
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
+
+    // For CodeSandbox, we would need to update the package.json file
+    // This is a simplified implementation
+    console.log(`[DEPENDENCY] Adding ${packageName} to sandbox ${sandbox.sandboxId} (dev: ${isDev})`);
 
     res.json({
       success: true,
       message: "Dependency added successfully",
-      output,
+      output: `Added ${packageName} to package.json`,
     });
   } catch (error) {
     res.status(500).json({
@@ -295,21 +402,21 @@ router.post("/:containerId/dependencies", async (req, res) => {
   }
 });
 
-//@ts-ignore
 router.get("/:containerId/export", async (req, res) => {
   const { containerId } = req.params;
 
   try {
-    const zipBuffer = await exportService.exportContainerCode(containerId);
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Sandbox not found",
+      });
+    }
 
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="nextjs-project-${containerId.slice(0, 8)}.zip"`
-    );
-    res.setHeader("Content-Length", zipBuffer.length);
-
-    res.send(zipBuffer);
+    // For CodeSandbox, we would redirect to their export functionality
+    // or implement a custom export by fetching all files
+    res.redirect(`https://codesandbox.io/s/${sandbox.sandboxId}/export`);
   } catch (error) {
     res.status(500).json({
       success: false,

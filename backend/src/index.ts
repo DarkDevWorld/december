@@ -27,7 +27,8 @@ app.use("/chat", chatRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Docker Container API running on port ${PORT}`);
+  console.log(`CodeSandbox Container API running on port ${PORT}`);
+  console.log(`Using CodeSandbox instead of Docker for container management`);
 });
 
 export default app;
