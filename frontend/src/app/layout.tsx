@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
@@ -46,11 +46,7 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
+  viewport: "width=device-width, initial-scale=1",
 };
 
 export default function RootLayout({
