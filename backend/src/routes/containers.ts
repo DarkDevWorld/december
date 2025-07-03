@@ -14,6 +14,7 @@ const sandboxes = new Map<string, {
   createdAt: string;
   name: string;
   type: string;
+  port?: number;
 }>();
 
 router.get("/", async (req, res) => {
@@ -22,11 +23,11 @@ router.get("/", async (req, res) => {
       id: sandbox.id,
       name: sandbox.name,
       status: sandbox.status,
-      image: "codesandbox/nextjs",
+      image: "december/nextjs",
       created: sandbox.createdAt,
-      assignedPort: 3000,
+      assignedPort: sandbox.port || 3001,
       url: sandbox.url,
-      ports: [{ private: 3000, public: 3000, type: "tcp" }],
+      ports: [{ private: sandbox.port || 3001, public: sandbox.port || 3001, type: "tcp" }],
       labels: { project: "december", type: "nextjs-app" }
     }));
 
@@ -46,9 +47,13 @@ router.post("/create", async (req, res) => {
   const containerId = uuidv4();
 
   try {
-    console.log(`[CONTAINER] Creating new sandbox with ID: ${containerId}`);
+    console.log(`[CONTAINER] Creating new local development environment with ID: ${containerId}`);
     
     const { sandboxId, url } = await codesandboxService.createSandbox();
+    
+    // Extract port from URL if possible
+    const portMatch = url.match(/:(\d+)/);
+    const port = portMatch ? parseInt(portMatch[1]) : 3001;
     
     const sandbox = {
       id: containerId,
@@ -57,7 +62,8 @@ router.post("/create", async (req, res) => {
       url,
       createdAt: new Date().toISOString(),
       name: `december-nextjs-${containerId.slice(0, 8)}`,
-      type: "Next.js App"
+      type: "Next.js App",
+      port
     };
 
     sandboxes.set(containerId, sandbox);
@@ -69,14 +75,14 @@ router.post("/create", async (req, res) => {
         id: containerId,
         containerId: sandboxId,
         status: "running",
-        port: 3000,
+        port,
         url,
         createdAt: sandbox.createdAt,
         type: sandbox.type,
       },
     });
   } catch (error) {
-    console.error(`[CONTAINER] Failed to create sandbox:`, error);
+    console.error(`[CONTAINER] Failed to create development environment:`, error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -92,7 +98,7 @@ router.post("/:containerId/start", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -102,10 +108,10 @@ router.post("/:containerId/start", async (req, res) => {
     res.json({
       success: true,
       containerId,
-      port: 3000,
+      port: sandbox.port || 3001,
       url: sandbox.url,
       status: "running",
-      message: "Sandbox started successfully",
+      message: "Development environment started successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -123,7 +129,7 @@ router.post("/:containerId/stop", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -134,7 +140,7 @@ router.post("/:containerId/stop", async (req, res) => {
       success: true,
       containerId,
       status: "stopped",
-      message: "Sandbox stopped successfully",
+      message: "Development environment stopped successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -152,7 +158,7 @@ router.delete("/:containerId", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -167,7 +173,7 @@ router.delete("/:containerId", async (req, res) => {
     res.json({
       success: true,
       containerId,
-      message: "Sandbox deleted successfully",
+      message: "Development environment deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -186,7 +192,7 @@ router.get("/:containerId/files", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -213,7 +219,7 @@ router.get("/:containerId/file-tree", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -239,7 +245,7 @@ router.get("/:containerId/file-content-tree", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -273,7 +279,7 @@ router.get("/:containerId/file", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -300,7 +306,7 @@ router.put("/:containerId/files", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -327,7 +333,7 @@ router.put("/:containerId/files/rename", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -354,7 +360,7 @@ router.delete("/:containerId/files", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
@@ -381,18 +387,50 @@ router.post("/:containerId/dependencies", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
-    // For CodeSandbox, we would need to update the package.json file
-    // This is a simplified implementation
-    console.log(`[DEPENDENCY] Adding ${packageName} to sandbox ${sandbox.sandboxId} (dev: ${isDev})`);
+    // Execute npm install command
+    const { executeCommand } = require("../services/codesandbox");
+    const command = `npm install ${packageName}${isDev ? ' --save-dev' : ''}`;
+    const result = await executeCommand(sandbox.sandboxId, command);
 
     res.json({
       success: true,
       message: "Dependency added successfully",
-      output: `Added ${packageName} to package.json`,
+      output: result.output,
+      error: result.error,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Terminal endpoint
+router.post("/:containerId/terminal", async (req, res) => {
+  const { containerId } = req.params;
+  const { command } = req.body;
+
+  try {
+    const sandbox = sandboxes.get(containerId);
+    if (!sandbox) {
+      return res.status(404).json({
+        success: false,
+        error: "Development environment not found",
+      });
+    }
+
+    const { executeCommand } = require("../services/codesandbox");
+    const result = await executeCommand(sandbox.sandboxId, command);
+
+    res.json({
+      success: true,
+      output: result.output,
+      error: result.error,
     });
   } catch (error) {
     res.status(500).json({
@@ -410,13 +448,24 @@ router.get("/:containerId/export", async (req, res) => {
     if (!sandbox) {
       return res.status(404).json({
         success: false,
-        error: "Sandbox not found",
+        error: "Development environment not found",
       });
     }
 
-    // For CodeSandbox, we would redirect to their export functionality
-    // or implement a custom export by fetching all files
-    res.redirect(`https://codesandbox.io/s/${sandbox.sandboxId}/export`);
+    // Create a ZIP file of the project
+    const archiver = require('archiver');
+    const path = require('path');
+    
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandbox.sandboxId);
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="december-project-${containerId.slice(0, 8)}.zip"`);
+    
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+    
+    archive.directory(projectDir, false);
+    archive.finalize();
   } catch (error) {
     res.status(500).json({
       success: false,

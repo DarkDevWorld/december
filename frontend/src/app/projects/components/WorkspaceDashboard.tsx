@@ -15,6 +15,7 @@ import {
   Smartphone,
   Terminal,
   Upload,
+  Send,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -51,8 +52,13 @@ export const WorkspaceDashboard = ({
   );
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [showTerminal, setShowTerminal] = useState<boolean>(false);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
+  const [terminalInput, setTerminalInput] = useState<string>("");
+  const [isExecutingCommand, setIsExecutingCommand] = useState<boolean>(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const streamCancelRef = useRef<(() => void) | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -60,9 +66,17 @@ export const WorkspaceDashboard = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const scrollTerminalToBottom = () => {
+    terminalRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    scrollTerminalToBottom();
+  }, [terminalOutput]);
 
   useEffect(() => {
     if (containerId) {
@@ -83,7 +97,7 @@ export const WorkspaceDashboard = ({
         }
       };
 
-      fetchContainerUrl();
+      fetchContainer();
       const interval = setInterval(fetchContainerUrl, 10000);
       return () => clearInterval(interval);
     }
@@ -311,6 +325,57 @@ export const WorkspaceDashboard = ({
     }
   };
 
+  const handleTerminalCommand = async () => {
+    if (!terminalInput.trim() || isExecutingCommand) return;
+
+    const command = terminalInput.trim();
+    setTerminalInput("");
+    setIsExecutingCommand(true);
+
+    // Add command to output
+    setTerminalOutput((prev) => [...prev, `$ ${command}`]);
+
+    try {
+      const response = await fetch(
+        `http://localhost:4000/containers/${containerId}/terminal`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ command }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.output) {
+          setTerminalOutput((prev) => [...prev, data.output]);
+        }
+        if (data.error) {
+          setTerminalOutput((prev) => [...prev, `Error: ${data.error}`]);
+        }
+      } else {
+        setTerminalOutput((prev) => [...prev, `Error: ${data.error}`]);
+      }
+    } catch (error) {
+      setTerminalOutput((prev) => [
+        ...prev,
+        `Error: Failed to execute command`,
+      ]);
+    } finally {
+      setIsExecutingCommand(false);
+    }
+  };
+
+  const handleTerminalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleTerminalCommand();
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -392,7 +457,7 @@ export const WorkspaceDashboard = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `nextjs-project-${containerId.slice(0, 8)}.zip`;
+      a.download = `december-project-${containerId.slice(0, 8)}.zip`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -496,8 +561,7 @@ export const WorkspaceDashboard = ({
         <div className="relative z-10">
           <div className="prose prose-sm prose-invert max-w-none [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white [&_strong]:text-white">
             <p className="mb-2">
-              👋 Welcome to your Next.js project! I'm here to help you build,
-              modify, and deploy your application.
+              👋 Welcome to your Next.js development environment! I'm here to help you build, modify, and deploy your application.
             </p>
             <p className="mb-2">I can help you with:</p>
             <ul className="list-disc ml-4 mb-2">
@@ -505,11 +569,11 @@ export const WorkspaceDashboard = ({
               <li>Modifying existing code</li>
               <li>Installing packages and dependencies</li>
               <li>Debugging and troubleshooting</li>
-              <li>Optimizing performance</li>
+              <li>Running terminal commands</li>
             </ul>
             <p className="mb-0">
               Just describe what you'd like to build or change, and I'll help
-              you make it happen! 🚀
+              you make it happen! You can also use the integrated terminal for direct command execution. 🚀
             </p>
           </div>
         </div>
@@ -641,6 +705,18 @@ export const WorkspaceDashboard = ({
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
 
+            <button
+              onClick={() => setShowTerminal(!showTerminal)}
+              className={`p-1.5 rounded-md transition-all backdrop-blur-sm ${
+                showTerminal
+                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  : "text-white/60 hover:text-white hover:bg-white/5"
+              }`}
+              title="Toggle terminal"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+            </button>
+
             <div className="h-4 w-px bg-gray-700/40 mx-1" />
 
             <button
@@ -736,6 +812,63 @@ export const WorkspaceDashboard = ({
                   <div ref={messagesEndRef} />
                 </div>
               </div>
+
+              {showTerminal && (
+                <div className="border-t border-gray-800/30 bg-black/40 backdrop-blur-sm relative z-10">
+                  <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800/30">
+                    <Terminal className="w-3.5 h-3.5 text-green-400" />
+                    <span className="text-xs font-medium text-white/90">
+                      Terminal
+                    </span>
+                    <button
+                      onClick={() => setTerminalOutput([])}
+                      className="ml-auto text-xs text-white/50 hover:text-white/80 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="h-32 overflow-y-auto p-2 font-mono text-xs">
+                    {terminalOutput.map((line, index) => (
+                      <div
+                        key={index}
+                        className={`${
+                          line.startsWith("$")
+                            ? "text-green-400"
+                            : line.startsWith("Error:")
+                            ? "text-red-400"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        {line}
+                      </div>
+                    ))}
+                    <div ref={terminalRef} />
+                  </div>
+                  <div className="flex items-center gap-2 p-2 border-t border-gray-800/30">
+                    <span className="text-green-400 font-mono text-xs">$</span>
+                    <input
+                      type="text"
+                      value={terminalInput}
+                      onChange={(e) => setTerminalInput(e.target.value)}
+                      onKeyDown={handleTerminalKeyDown}
+                      disabled={isExecutingCommand}
+                      placeholder="Enter command..."
+                      className="flex-1 bg-transparent text-white text-xs font-mono focus:outline-none disabled:opacity-50"
+                    />
+                    <button
+                      onClick={handleTerminalCommand}
+                      disabled={!terminalInput.trim() || isExecutingCommand}
+                      className="p-1 text-white/60 hover:text-white disabled:opacity-50 transition-colors"
+                    >
+                      {isExecutingCommand ? (
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white/90 rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="border-t border-gray-800/30 relative z-10">
                 <ChatInput

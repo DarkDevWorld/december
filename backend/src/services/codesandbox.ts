@@ -35,62 +35,172 @@ interface CodeSandboxSandbox {
   };
 }
 
-const CODESANDBOX_API_BASE = 'https://codesandbox.io/api/v1';
-
-// Since the CodeSandbox API has limitations, we'll create a mock sandbox
-// and provide instructions for users to create their own
+// Local development environment instead of CodeSandbox API
 export async function createSandbox(): Promise<{ sandboxId: string; url: string }> {
-  console.log('[CODESANDBOX] Creating new sandbox...');
+  console.log('[LOCAL-DEV] Creating new local development environment...');
   
   try {
-    // Generate a unique sandbox ID for our mock
-    const mockSandboxId = generateMockSandboxId();
+    // Generate a unique sandbox ID
+    const sandboxId = generateSandboxId();
     
-    // Create a CodeSandbox URL that users can use to create their project
-    const templateUrl = createCodeSandboxTemplate();
+    // Create local development environment
+    const devEnv = await createLocalDevEnvironment(sandboxId);
     
-    console.log(`[CODESANDBOX] Mock sandbox created: ${mockSandboxId}`);
-    console.log(`[CODESANDBOX] Template URL: ${templateUrl}`);
+    console.log(`[LOCAL-DEV] Environment created: ${sandboxId}`);
+    console.log(`[LOCAL-DEV] Local URL: ${devEnv.url}`);
     
     return { 
-      sandboxId: mockSandboxId, 
-      url: templateUrl 
+      sandboxId, 
+      url: devEnv.url 
     };
   } catch (error) {
-    console.error('[CODESANDBOX] Failed to create sandbox:', error);
-    
-    // Fallback to a basic Next.js template
-    const fallbackId = generateMockSandboxId();
-    const fallbackUrl = 'https://codesandbox.io/s/nextjs-basic-template';
-    
-    console.log(`[CODESANDBOX] Using fallback: ${fallbackId}`);
-    return { sandboxId: fallbackId, url: fallbackUrl };
+    console.error('[LOCAL-DEV] Failed to create environment:', error);
+    throw error;
   }
 }
 
-function generateMockSandboxId(): string {
-  // Generate a CodeSandbox-style ID (6 characters)
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+function generateSandboxId(): string {
+  // Generate a unique ID
+  return `dec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function createCodeSandboxTemplate(): string {
-  // Create a CodeSandbox template URL with our Next.js setup
+async function createLocalDevEnvironment(sandboxId: string): Promise<{ url: string; port: number }> {
+  const fs = require('fs').promises;
+  const path = require('path');
+  const { spawn } = require('child_process');
+  
+  // Create project directory
+  const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+  
+  try {
+    await fs.mkdir(projectDir, { recursive: true });
+    
+    // Create Next.js project structure
+    await createNextJSProject(projectDir);
+    
+    // Find available port
+    const port = await findAvailablePort(3001);
+    
+    // Start development server
+    await startDevServer(projectDir, port);
+    
+    return {
+      url: `http://localhost:${port}`,
+      port
+    };
+  } catch (error) {
+    console.error('[LOCAL-DEV] Error creating environment:', error);
+    throw error;
+  }
+}
+
+async function createNextJSProject(projectDir: string): Promise<void> {
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  console.log('[LOCAL-DEV] Creating Next.js project structure...');
+  
+  // Create directory structure
+  const dirs = [
+    'src/app',
+    'src/components',
+    'src/lib',
+    'public'
+  ];
+  
+  for (const dir of dirs) {
+    await fs.mkdir(path.join(projectDir, dir), { recursive: true });
+  }
+  
+  // Create files
   const files = getDefaultNextJSFiles();
   
-  // Convert files to CodeSandbox URL parameters
-  const fileParams = Object.entries(files).map(([path, file]) => {
-    const encodedPath = encodeURIComponent(path);
-    const encodedContent = encodeURIComponent(file.code);
-    return `file=${encodedPath}&content=${encodedContent}`;
-  }).join('&');
+  for (const [filePath, fileData] of Object.entries(files)) {
+    const fullPath = path.join(projectDir, filePath);
+    const dir = path.dirname(fullPath);
+    
+    // Ensure directory exists
+    await fs.mkdir(dir, { recursive: true });
+    
+    // Write file
+    await fs.writeFile(fullPath, fileData.code, 'utf8');
+  }
   
-  // For now, return a working Next.js template
-  return 'https://codesandbox.io/s/nextjs-typescript-starter-1kcm4';
+  console.log('[LOCAL-DEV] Project structure created successfully');
+}
+
+async function findAvailablePort(startPort: number): Promise<number> {
+  const net = require('net');
+  
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    
+    server.listen(startPort, () => {
+      const port = server.address()?.port;
+      server.close(() => {
+        resolve(port || startPort);
+      });
+    });
+    
+    server.on('error', () => {
+      // Port is busy, try next one
+      findAvailablePort(startPort + 1).then(resolve).catch(reject);
+    });
+  });
+}
+
+async function startDevServer(projectDir: string, port: number): Promise<void> {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  console.log(`[LOCAL-DEV] Starting development server on port ${port}...`);
+  
+  return new Promise((resolve, reject) => {
+    // Install dependencies first
+    const installProcess = spawn('npm', ['install'], {
+      cwd: projectDir,
+      stdio: 'pipe'
+    });
+    
+    installProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('[LOCAL-DEV] Dependencies installed successfully');
+        
+        // Start dev server
+        const devProcess = spawn('npm', ['run', 'dev'], {
+          cwd: projectDir,
+          stdio: 'pipe',
+          env: { ...process.env, PORT: port.toString() }
+        });
+        
+        devProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          console.log(`[DEV-SERVER] ${output}`);
+          
+          if (output.includes('Ready') || output.includes('started server')) {
+            resolve();
+          }
+        });
+        
+        devProcess.stderr.on('data', (data) => {
+          console.error(`[DEV-SERVER] ${data}`);
+        });
+        
+        devProcess.on('close', (code) => {
+          console.log(`[DEV-SERVER] Process exited with code ${code}`);
+        });
+        
+        // Resolve after a short delay to ensure server is starting
+        setTimeout(resolve, 3000);
+      } else {
+        reject(new Error(`Failed to install dependencies: ${code}`));
+      }
+    });
+    
+    installProcess.stderr.on('data', (data) => {
+      console.error(`[INSTALL] ${data}`);
+    });
+  });
 }
 
 // Default Next.js template files
@@ -108,64 +218,18 @@ const getDefaultNextJSFiles = (): Record<string, CodeSandboxFile> => {
           lint: 'next lint'
         },
         dependencies: {
-          '@hookform/resolvers': '^5.0.1',
-          '@radix-ui/react-accordion': '^1.2.11',
-          '@radix-ui/react-alert-dialog': '^1.1.14',
-          '@radix-ui/react-aspect-ratio': '^1.1.7',
-          '@radix-ui/react-avatar': '^1.1.10',
-          '@radix-ui/react-checkbox': '^1.3.2',
-          '@radix-ui/react-collapsible': '^1.1.11',
-          '@radix-ui/react-context-menu': '^2.2.15',
-          '@radix-ui/react-dialog': '^1.1.14',
-          '@radix-ui/react-dropdown-menu': '^2.1.15',
-          '@radix-ui/react-hover-card': '^1.1.14',
-          '@radix-ui/react-label': '^2.1.7',
-          '@radix-ui/react-menubar': '^1.1.15',
-          '@radix-ui/react-navigation-menu': '^1.2.13',
-          '@radix-ui/react-popover': '^1.1.14',
-          '@radix-ui/react-progress': '^1.1.7',
-          '@radix-ui/react-radio-group': '^1.3.7',
-          '@radix-ui/react-scroll-area': '^1.2.9',
-          '@radix-ui/react-select': '^2.2.5',
-          '@radix-ui/react-separator': '^1.1.7',
-          '@radix-ui/react-slider': '^1.3.5',
-          '@radix-ui/react-slot': '^1.2.3',
-          '@radix-ui/react-switch': '^1.2.5',
-          '@radix-ui/react-tabs': '^1.1.12',
-          '@radix-ui/react-toast': '^1.2.14',
-          '@radix-ui/react-toggle': '^1.1.9',
-          '@radix-ui/react-toggle-group': '^1.1.10',
-          '@radix-ui/react-tooltip': '^1.2.7',
-          '@tanstack/react-query': '^5.80.6',
-          '@tanstack/react-table': '^8.21.3',
-          'class-variance-authority': '^0.7.1',
-          clsx: '^2.1.1',
-          cmdk: '^1.1.1',
-          'date-fns': '^4.1.0',
-          'embla-carousel-react': '^8.6.0',
-          'input-otp': '^1.4.2',
-          'lucide-react': '^0.513.0',
-          next: '15.3.3',
-          'next-themes': '^0.4.6',
-          react: '^19.0.0',
-          'react-day-picker': '8.10.1',
+          'next': '15.3.3',
+          'react': '^19.0.0',
           'react-dom': '^19.0.0',
-          'react-hook-form': '^7.57.0',
-          'react-resizable-panels': '^3.0.2',
-          recharts: '^2.15.3',
-          sonner: '^2.0.5',
-          'tailwind-merge': '^3.3.0',
-          vaul: '^1.1.2',
-          zod: '^3.25.55'
+          'lucide-react': '^0.513.0'
         },
         devDependencies: {
           '@tailwindcss/postcss': '^4',
           '@types/node': '^20',
           '@types/react': '^19',
           '@types/react-dom': '^19',
-          tailwindcss: '^4',
-          'tw-animate-css': '^1.3.4',
-          typescript: '^5'
+          'tailwindcss': '^4',
+          'typescript': '^5'
         }
       }, null, 2),
       isBinary: false
@@ -278,55 +342,87 @@ export default function RootLayout({
       isBinary: false
     },
     'src/app/page.tsx': {
-      code: `import Image from "next/image";
+      code: `import { Terminal, Code, Zap } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">D</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+      <div className="container mx-auto px-4 py-16">
+        <div className="text-center mb-16">
+          <div className="flex items-center justify-center gap-4 mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-2xl">
+              <span className="text-white font-bold text-2xl">D</span>
+            </div>
+            <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+              December
+            </h1>
           </div>
-          <h1 className="text-4xl font-bold">December Next.js App</h1>
+          
+          <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
+            Your AI-powered development environment is ready! Start building amazing applications with real-time assistance.
+          </p>
+          
+          <div className="flex items-center justify-center gap-4 text-sm text-gray-400">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span>Live Development Server</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+              <span>AI Assistant Active</span>
+            </div>
+          </div>
         </div>
-        
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-          <li>Use the AI assistant to build amazing features!</li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read the docs
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Deploy now
-          </a>
+        <div className="grid md:grid-cols-3 gap-8 mb-16">
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/50 transition-all">
+            <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
+              <Code className="w-6 h-6 text-blue-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Real-time Editing</h3>
+            <p className="text-gray-400">
+              Edit your code with our Monaco editor and see changes instantly in the preview.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/50 transition-all">
+            <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4">
+              <Terminal className="w-6 h-6 text-purple-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Integrated Terminal</h3>
+            <p className="text-gray-400">
+              Run commands, install packages, and manage your project with the built-in terminal.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/50 transition-all">
+            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
+              <Zap className="w-6 h-6 text-green-400" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
+            <p className="text-gray-400">
+              Get intelligent code suggestions and assistance from our AI chat interface.
+            </p>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <p className="text-sm text-gray-500">
-          Built with December AI ❄️
-        </p>
-      </footer>
+
+        <div className="text-center">
+          <div className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-8 border border-gray-700/30">
+            <h2 className="text-2xl font-bold mb-4">Ready to Build?</h2>
+            <p className="text-gray-300 mb-6">
+              Start by asking the AI assistant what you'd like to build, or begin editing the code directly.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <div className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer">
+                Open Chat Assistant
+              </div>
+              <div className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors cursor-pointer">
+                View Code Editor
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }`,
@@ -338,15 +434,8 @@ export default function Home() {
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
@@ -369,21 +458,19 @@ This is a [Next.js](https://nextjs.org) project created with December AI.
 
 ## Getting Started
 
-First, run the development server:
+The development server is already running! You can:
 
-\`\`\`bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-\`\`\`
+1. **Edit the code** - Use the Monaco editor to modify files
+2. **Chat with AI** - Ask the assistant to help build features
+3. **See live changes** - Your changes appear instantly in the preview
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying \`src/app/page.tsx\`. The page auto-updates as you edit the file.
+- ⚡ Real-time development server
+- 🤖 AI-powered code assistance
+- 📝 Monaco code editor
+- 🖥️ Live preview
+- 📱 Mobile and desktop views
 
 ## Learn More
 
@@ -392,76 +479,89 @@ To learn more about Next.js, take a look at the following resources:
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.`,
+When you're ready to deploy, you can export your project and deploy it to Vercel, Netlify, or any other hosting platform.`,
       isBinary: false
     }
   };
 };
 
 export async function getSandbox(sandboxId: string): Promise<CodeSandboxSandbox> {
-  console.log(`[CODESANDBOX] Fetching sandbox: ${sandboxId}`);
+  console.log(`[LOCAL-DEV] Fetching sandbox: ${sandboxId}`);
   
-  // For mock sandboxes, return a basic structure
-  const mockSandbox: CodeSandboxSandbox = {
-    id: sandboxId,
-    title: 'December Next.js App',
-    description: 'A Next.js application created with December',
-    template: 'next',
-    modules: [
-      {
-        shortid: 'app-page',
-        title: 'page.tsx',
-        code: getDefaultNextJSFiles()['src/app/page.tsx'].code,
-        directory_shortid: 'src-app'
-      },
-      {
-        shortid: 'app-layout',
-        title: 'layout.tsx',
-        code: getDefaultNextJSFiles()['src/app/layout.tsx'].code,
-        directory_shortid: 'src-app'
-      },
-      {
-        shortid: 'package-json',
-        title: 'package.json',
-        code: getDefaultNextJSFiles()['package.json'].code,
-        directory_shortid: null
-      }
-    ],
-    directories: [
-      {
-        shortid: 'src',
-        title: 'src',
-        directory_shortid: null
-      },
-      {
-        shortid: 'src-app',
-        title: 'app',
-        directory_shortid: 'src'
-      }
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    view_count: 0,
-    fork_count: 0,
-    privacy: 0,
-    screenshot_url: '',
-    git: null,
-    team: null,
-    user: {
-      id: 'december',
-      username: 'december',
-      name: 'December AI',
-      avatar_url: ''
-    }
-  };
+  const fs = require('fs').promises;
+  const path = require('path');
   
-  return mockSandbox;
+  try {
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    
+    // Check if project exists
+    await fs.access(projectDir);
+    
+    // Read project structure
+    const modules = [];
+    const directories = [];
+    
+    // Add basic structure for now
+    const mockSandbox: CodeSandboxSandbox = {
+      id: sandboxId,
+      title: 'December Next.js App',
+      description: 'A Next.js application created with December',
+      template: 'next',
+      modules: [
+        {
+          shortid: 'app-page',
+          title: 'page.tsx',
+          code: getDefaultNextJSFiles()['src/app/page.tsx'].code,
+          directory_shortid: 'src-app'
+        },
+        {
+          shortid: 'app-layout',
+          title: 'layout.tsx',
+          code: getDefaultNextJSFiles()['src/app/layout.tsx'].code,
+          directory_shortid: 'src-app'
+        },
+        {
+          shortid: 'package-json',
+          title: 'package.json',
+          code: getDefaultNextJSFiles()['package.json'].code,
+          directory_shortid: null
+        }
+      ],
+      directories: [
+        {
+          shortid: 'src',
+          title: 'src',
+          directory_shortid: null
+        },
+        {
+          shortid: 'src-app',
+          title: 'app',
+          directory_shortid: 'src'
+        }
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      view_count: 0,
+      fork_count: 0,
+      privacy: 0,
+      screenshot_url: '',
+      git: null,
+      team: null,
+      user: {
+        id: 'december',
+        username: 'december',
+        name: 'December AI',
+        avatar_url: ''
+      }
+    };
+    
+    return mockSandbox;
+  } catch (error) {
+    console.error(`[LOCAL-DEV] Error fetching sandbox ${sandboxId}:`, error);
+    throw error;
+  }
 }
 
 export async function updateSandboxFile(
@@ -469,31 +569,130 @@ export async function updateSandboxFile(
   filePath: string, 
   content: string
 ): Promise<void> {
-  console.log(`[CODESANDBOX] Updating file ${filePath} in sandbox ${sandboxId}`);
+  console.log(`[LOCAL-DEV] Updating file ${filePath} in sandbox ${sandboxId}`);
   
-  // For now, just log the operation since we're using mock sandboxes
-  console.log(`[CODESANDBOX] File update simulated for ${filePath}`);
-  console.log(`[CODESANDBOX] Content length: ${content.length} characters`);
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  try {
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const fullPath = path.join(projectDir, filePath);
+    const dir = path.dirname(fullPath);
+    
+    // Ensure directory exists
+    await fs.mkdir(dir, { recursive: true });
+    
+    // Write file
+    await fs.writeFile(fullPath, content, 'utf8');
+    
+    console.log(`[LOCAL-DEV] File updated successfully: ${filePath}`);
+  } catch (error) {
+    console.error(`[LOCAL-DEV] Error updating file ${filePath}:`, error);
+    throw error;
+  }
 }
 
 export async function deleteSandbox(sandboxId: string): Promise<void> {
-  console.log(`[CODESANDBOX] Deleting sandbox: ${sandboxId}`);
+  console.log(`[LOCAL-DEV] Deleting sandbox: ${sandboxId}`);
   
-  // For mock sandboxes, just log the operation
-  console.log(`[CODESANDBOX] Sandbox deletion simulated: ${sandboxId}`);
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  try {
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    await fs.rmdir(projectDir, { recursive: true });
+    
+    console.log(`[LOCAL-DEV] Sandbox deleted successfully: ${sandboxId}`);
+  } catch (error) {
+    console.error(`[LOCAL-DEV] Error deleting sandbox ${sandboxId}:`, error);
+    throw error;
+  }
 }
 
 export async function listUserSandboxes(): Promise<CodeSandboxSandbox[]> {
-  console.log('[CODESANDBOX] Fetching user sandboxes...');
+  console.log('[LOCAL-DEV] Fetching user sandboxes...');
   
-  // Return empty array for mock implementation
-  return [];
+  const fs = require('fs').promises;
+  const path = require('path');
+  
+  try {
+    const sandboxesDir = path.join(process.cwd(), 'sandboxes');
+    
+    // Create sandboxes directory if it doesn't exist
+    try {
+      await fs.mkdir(sandboxesDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist
+    }
+    
+    const entries = await fs.readdir(sandboxesDir);
+    const sandboxes = [];
+    
+    for (const entry of entries) {
+      try {
+        const sandbox = await getSandbox(entry);
+        sandboxes.push(sandbox);
+      } catch (error) {
+        console.warn(`[LOCAL-DEV] Could not load sandbox ${entry}:`, error);
+      }
+    }
+    
+    return sandboxes;
+  } catch (error) {
+    console.error('[LOCAL-DEV] Error listing sandboxes:', error);
+    return [];
+  }
 }
 
 export function getSandboxUrl(sandboxId: string): string {
-  return `https://codesandbox.io/s/${sandboxId}`;
+  // Return local development URL
+  return `http://localhost:3001`; // This will be dynamic based on the actual port
 }
 
 export function getEmbedUrl(sandboxId: string): string {
-  return `https://codesandbox.io/embed/${sandboxId}`;
+  return getSandboxUrl(sandboxId);
+}
+
+// Terminal functionality
+export async function executeCommand(sandboxId: string, command: string): Promise<{ output: string; error?: string }> {
+  console.log(`[TERMINAL] Executing command in ${sandboxId}: ${command}`);
+  
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  return new Promise((resolve) => {
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    
+    const process = spawn('sh', ['-c', command], {
+      cwd: projectDir,
+      stdio: 'pipe'
+    });
+    
+    let output = '';
+    let error = '';
+    
+    process.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    process.stderr.on('data', (data) => {
+      error += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      resolve({
+        output: output || `Command executed with exit code: ${code}`,
+        error: error || undefined
+      });
+    });
+    
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      process.kill();
+      resolve({
+        output: 'Command timed out after 30 seconds',
+        error: 'Timeout'
+      });
+    }, 30000);
+  });
 }

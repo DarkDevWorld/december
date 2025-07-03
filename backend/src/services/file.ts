@@ -16,90 +16,60 @@ export interface FileContentItem {
   children?: FileContentItem[];
 }
 
-// Convert CodeSandbox modules and directories to our file tree format
-function convertCodeSandboxToFileTree(sandbox: any): FileItem[] {
-  const fileTree: Map<string, FileItem> = new Map();
-  
-  // Create root
-  const root: FileItem = {
-    name: "root",
-    path: "/",
-    type: "directory",
-    children: []
-  };
-  fileTree.set("/", root);
-
-  // Process directories first
-  sandbox.directories?.forEach((dir: any) => {
-    const path = dir.directory_shortid ? 
-      `/${dir.directory_shortid}/${dir.title}` : 
-      `/${dir.title}`;
-    
-    const dirItem: FileItem = {
-      name: dir.title,
-      path: path,
-      type: "directory",
-      children: []
-    };
-    
-    fileTree.set(dir.shortid, dirItem);
-  });
-
-  // Process files
-  sandbox.modules?.forEach((module: any) => {
-    const filePath = module.directory_shortid ? 
-      `/${module.directory_shortid}/${module.title}` : 
-      `/${module.title}`;
-    
-    const fileItem: FileItem = {
-      name: module.title,
-      path: filePath,
-      type: "file",
-      content: module.code
-    };
-    
-    fileTree.set(module.shortid, fileItem);
-  });
-
-  // Build hierarchy
-  sandbox.directories?.forEach((dir: any) => {
-    const dirItem = fileTree.get(dir.shortid);
-    if (dirItem) {
-      if (dir.directory_shortid) {
-        const parentDir = fileTree.get(dir.directory_shortid);
-        if (parentDir && parentDir.children) {
-          parentDir.children.push(dirItem);
-        }
-      } else {
-        root.children?.push(dirItem);
-      }
-    }
-  });
-
-  sandbox.modules?.forEach((module: any) => {
-    const fileItem = fileTree.get(module.shortid);
-    if (fileItem) {
-      if (module.directory_shortid) {
-        const parentDir = fileTree.get(module.directory_shortid);
-        if (parentDir && parentDir.children) {
-          parentDir.children.push(fileItem);
-        }
-      } else {
-        root.children?.push(fileItem);
-      }
-    }
-  });
-
-  return root.children || [];
-}
-
 export async function getFileTree(sandboxId: string): Promise<FileItem[]> {
   console.log(`[FILE] Getting file tree for sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    const sandbox = await getSandbox(sandboxId);
-    const fileTree = convertCodeSandboxToFileTree(sandbox);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
     
+    const buildFileTree = async (dirPath: string, relativePath: string = ""): Promise<FileItem[]> => {
+      const items: FileItem[] = [];
+      
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          // Skip node_modules, .next, and other build directories
+          if (['node_modules', '.next', '.git', 'dist', 'build'].includes(entry.name)) {
+            continue;
+          }
+          
+          const fullPath = path.join(dirPath, entry.name);
+          const itemPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+          
+          if (entry.isDirectory()) {
+            const children = await buildFileTree(fullPath, itemPath);
+            items.push({
+              name: entry.name,
+              path: itemPath,
+              type: "directory",
+              children
+            });
+          } else {
+            items.push({
+              name: entry.name,
+              path: itemPath,
+              type: "file"
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(`[FILE] Could not read directory ${dirPath}:`, error);
+      }
+      
+      return items.sort((a, b) => {
+        // Directories first, then files
+        if (a.type !== b.type) {
+          return a.type === 'directory' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    };
+    
+    const fileTree = await buildFileTree(projectDir);
     console.log(`[FILE] File tree retrieved with ${fileTree.length} root items`);
     return fileTree;
   } catch (error) {
@@ -111,13 +81,80 @@ export async function getFileTree(sandboxId: string): Promise<FileItem[]> {
 export async function getFileContentTree(sandboxId: string): Promise<FileContentItem[]> {
   console.log(`[FILE] Getting file content tree for sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    const sandbox = await getSandbox(sandboxId);
-    const fileTree = convertCodeSandboxToFileTree(sandbox);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
     
-    // Convert FileItem[] to FileContentItem[] (they have the same structure)
-    const contentTree: FileContentItem[] = JSON.parse(JSON.stringify(fileTree));
+    const buildContentTree = async (dirPath: string, relativePath: string = ""): Promise<FileContentItem[]> => {
+      const items: FileContentItem[] = [];
+      
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          // Skip node_modules, .next, and other build directories
+          if (['node_modules', '.next', '.git', 'dist', 'build'].includes(entry.name)) {
+            continue;
+          }
+          
+          const fullPath = path.join(dirPath, entry.name);
+          const itemPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+          
+          if (entry.isDirectory()) {
+            const children = await buildContentTree(fullPath, itemPath);
+            items.push({
+              name: entry.name,
+              path: itemPath,
+              type: "directory",
+              children
+            });
+          } else {
+            try {
+              // Read file content for text files
+              const stats = await fs.stat(fullPath);
+              if (stats.size < 1024 * 1024) { // Only read files smaller than 1MB
+                const content = await fs.readFile(fullPath, 'utf8');
+                items.push({
+                  name: entry.name,
+                  path: itemPath,
+                  type: "file",
+                  content
+                });
+              } else {
+                items.push({
+                  name: entry.name,
+                  path: itemPath,
+                  type: "file",
+                  content: "// File too large to display"
+                });
+              }
+            } catch (readError) {
+              // Binary file or read error
+              items.push({
+                name: entry.name,
+                path: itemPath,
+                type: "file",
+                content: "// Binary file or read error"
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`[FILE] Could not read directory ${dirPath}:`, error);
+      }
+      
+      return items.sort((a, b) => {
+        // Directories first, then files
+        if (a.type !== b.type) {
+          return a.type === 'directory' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    };
     
+    const contentTree = await buildContentTree(projectDir);
     console.log(`[FILE] File content tree retrieved with ${contentTree.length} root items`);
     return contentTree;
   } catch (error) {
@@ -129,23 +166,16 @@ export async function getFileContentTree(sandboxId: string): Promise<FileContent
 export async function readFile(sandboxId: string, filePath: string): Promise<string> {
   console.log(`[FILE] Reading file: ${filePath} from sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    const sandbox = await getSandbox(sandboxId);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const fullPath = path.join(projectDir, filePath);
     
-    // Find the file in modules
-    const module = sandbox.modules?.find((m: any) => {
-      const modulePath = m.directory_shortid ? 
-        `/${m.directory_shortid}/${m.title}` : 
-        `/${m.title}`;
-      return modulePath === filePath || m.title === filePath.split('/').pop();
-    });
-
-    if (!module) {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
+    const content = await fs.readFile(fullPath, 'utf8');
     console.log(`[FILE] File read successfully: ${filePath}`);
-    return module.code || '';
+    return content;
   } catch (error) {
     console.error(`[FILE] Failed to read file ${filePath}:`, error);
     throw error;
@@ -155,8 +185,19 @@ export async function readFile(sandboxId: string, filePath: string): Promise<str
 export async function writeFile(sandboxId: string, filePath: string, content: string): Promise<void> {
   console.log(`[FILE] Writing file: ${filePath} to sandbox: ${sandboxId} (${content.length} characters)`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    await updateSandboxFile(sandboxId, filePath, content);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const fullPath = path.join(projectDir, filePath);
+    const dir = path.dirname(fullPath);
+    
+    // Ensure directory exists
+    await fs.mkdir(dir, { recursive: true });
+    
+    // Write file
+    await fs.writeFile(fullPath, content, 'utf8');
     console.log(`[FILE] File written successfully: ${filePath}`);
   } catch (error) {
     console.error(`[FILE] Failed to write file ${filePath}:`, error);
@@ -167,12 +208,20 @@ export async function writeFile(sandboxId: string, filePath: string, content: st
 export async function renameFile(sandboxId: string, oldPath: string, newPath: string): Promise<void> {
   console.log(`[FILE] Renaming file: ${oldPath} → ${newPath} in sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    // For CodeSandbox, we would need to read the old file and create a new one
-    // This is a simplified implementation
-    const content = await readFile(sandboxId, oldPath);
-    await writeFile(sandboxId, newPath, content);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const oldFullPath = path.join(projectDir, oldPath);
+    const newFullPath = path.join(projectDir, newPath);
+    const newDir = path.dirname(newFullPath);
     
+    // Ensure target directory exists
+    await fs.mkdir(newDir, { recursive: true });
+    
+    // Rename file
+    await fs.rename(oldFullPath, newFullPath);
     console.log(`[FILE] File renamed successfully: ${oldPath} → ${newPath}`);
   } catch (error) {
     console.error(`[FILE] Failed to rename file ${oldPath} → ${newPath}:`, error);
@@ -183,10 +232,22 @@ export async function renameFile(sandboxId: string, oldPath: string, newPath: st
 export async function removeFile(sandboxId: string, filePath: string): Promise<void> {
   console.log(`[FILE] Removing file: ${filePath} from sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    // Note: CodeSandbox API doesn't have a direct delete file endpoint
-    // This would require forking and recreating without the file
-    console.log(`[FILE] File removal simulated: ${filePath}`);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const fullPath = path.join(projectDir, filePath);
+    
+    const stats = await fs.stat(fullPath);
+    
+    if (stats.isDirectory()) {
+      await fs.rmdir(fullPath, { recursive: true });
+    } else {
+      await fs.unlink(fullPath);
+    }
+    
+    console.log(`[FILE] File removed successfully: ${filePath}`);
   } catch (error) {
     console.error(`[FILE] Failed to remove file ${filePath}:`, error);
     throw error;
@@ -196,17 +257,31 @@ export async function removeFile(sandboxId: string, filePath: string): Promise<v
 export async function listFiles(sandboxId: string, containerPath: string = "/"): Promise<any[]> {
   console.log(`[FILE] Listing files in path: ${containerPath} for sandbox: ${sandboxId}`);
   
+  const fs = require('fs').promises;
+  const path = require('path');
+  
   try {
-    const fileTree = await getFileTree(sandboxId);
+    const projectDir = path.join(process.cwd(), 'sandboxes', sandboxId);
+    const targetDir = containerPath === "/" ? projectDir : path.join(projectDir, containerPath);
     
-    // Convert to simple list format
-    const files = fileTree.map(item => ({
-      name: item.name,
-      type: item.type,
-      permissions: item.type === 'directory' ? 'drwxr-xr-x' : '-rw-r--r--',
-      size: item.content?.length || 0,
-      modified: new Date().toISOString().slice(0, 10)
-    }));
+    const entries = await fs.readdir(targetDir, { withFileTypes: true });
+    
+    const files = await Promise.all(
+      entries
+        .filter(entry => !['node_modules', '.next', '.git', 'dist', 'build'].includes(entry.name))
+        .map(async (entry) => {
+          const fullPath = path.join(targetDir, entry.name);
+          const stats = await fs.stat(fullPath);
+          
+          return {
+            name: entry.name,
+            type: entry.isDirectory() ? 'directory' : 'file',
+            permissions: entry.isDirectory() ? 'drwxr-xr-x' : '-rw-r--r--',
+            size: stats.size,
+            modified: stats.mtime.toISOString().slice(0, 10)
+          };
+        })
+    );
 
     console.log(`[FILE] Listed ${files.length} files in ${containerPath}`);
     return files;
