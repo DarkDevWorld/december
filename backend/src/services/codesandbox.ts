@@ -408,34 +408,48 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
   };
 };
 
+// Create a simple sandbox using the CodeSandbox import API
 export async function createSandbox(): Promise<{ sandboxId: string; url: string }> {
   console.log('[CODESANDBOX] Creating new sandbox...');
   
   try {
+    // Use the simpler import API instead of the define API
     const files = getDefaultNextJSFiles();
     
-    const createRequest: CreateSandboxRequest = {
-      files,
-      template: 'next',
-      title: `December Next.js App - ${new Date().toISOString().slice(0, 10)}`,
-      description: 'A Next.js application created with December'
+    // Convert files to the format expected by CodeSandbox import API
+    const fileMap: Record<string, string> = {};
+    Object.entries(files).forEach(([path, file]) => {
+      fileMap[path] = file.code;
+    });
+
+    // Use the import API which is more reliable
+    const importData = {
+      files: fileMap
     };
 
-    const response = await fetch(`${CODESANDBOX_API_BASE}/sandboxes/define`, {
+    console.log('[CODESANDBOX] Sending request to import API...');
+    
+    const response = await fetch(`${CODESANDBOX_API_BASE}/sandboxes/import`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(createRequest)
+      body: JSON.stringify(importData)
     });
+
+    console.log(`[CODESANDBOX] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[CODESANDBOX] Error response: ${errorText}`);
       throw new Error(`CodeSandbox API error: ${response.status} - ${errorText}`);
     }
 
-    const result: CreateSandboxResponse = await response.json();
-    const sandboxId = result.sandbox_id;
+    const result = await response.json();
+    console.log('[CODESANDBOX] Response received:', result);
+    
+    // The import API returns the sandbox data directly
+    const sandboxId = result.id;
     const url = `https://codesandbox.io/s/${sandboxId}`;
     
     console.log(`[CODESANDBOX] Sandbox created successfully: ${sandboxId}`);
@@ -444,6 +458,74 @@ export async function createSandbox(): Promise<{ sandboxId: string; url: string 
     return { sandboxId, url };
   } catch (error) {
     console.error('[CODESANDBOX] Failed to create sandbox:', error);
+    
+    // Fallback: create a simple sandbox with minimal files
+    try {
+      console.log('[CODESANDBOX] Attempting fallback with minimal template...');
+      
+      const minimalFiles = {
+        'package.json': JSON.stringify({
+          name: 'december-nextjs-app',
+          version: '0.1.0',
+          private: true,
+          scripts: {
+            dev: 'next dev',
+            build: 'next build',
+            start: 'next start'
+          },
+          dependencies: {
+            next: '15.3.3',
+            react: '^19.0.0',
+            'react-dom': '^19.0.0'
+          },
+          devDependencies: {
+            '@types/node': '^20',
+            '@types/react': '^19',
+            '@types/react-dom': '^19',
+            typescript: '^5'
+          }
+        }, null, 2),
+        'src/app/page.tsx': `export default function Home() {
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>
+      <h1>Welcome to December!</h1>
+      <p>Your Next.js application is ready.</p>
+    </div>
+  );
+}`,
+        'src/app/layout.tsx': `export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}`
+      };
+
+      const fallbackResponse = await fetch(`${CODESANDBOX_API_BASE}/sandboxes/import`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ files: minimalFiles })
+      });
+
+      if (fallbackResponse.ok) {
+        const fallbackResult = await fallbackResponse.json();
+        const sandboxId = fallbackResult.id;
+        const url = `https://codesandbox.io/s/${sandboxId}`;
+        
+        console.log(`[CODESANDBOX] Fallback sandbox created: ${sandboxId}`);
+        return { sandboxId, url };
+      }
+    } catch (fallbackError) {
+      console.error('[CODESANDBOX] Fallback also failed:', fallbackError);
+    }
+    
     throw error;
   }
 }
