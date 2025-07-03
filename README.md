@@ -31,6 +31,26 @@
     ✅ Full-featured Monaco code editor with file management
     ✅ Real-time chat assistant for development help
     ✅ Project export and deployment capabilities
+    ✅ Multiple AI provider support (OpenAI, Anthropic, Google, Groq, and more)
+
+## Supported AI Providers
+
+December supports multiple AI providers, giving you the flexibility to choose the best model for your needs:
+
+### Cloud Providers
+- **OpenAI** - GPT-4o, GPT-4 Turbo, GPT-3.5 Turbo, o1-preview, o1-mini
+- **Anthropic** - Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus, Claude 3 Sonnet
+- **Google AI** - Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 1.0 Pro
+- **Groq** - Llama 3.1 405B/70B/8B, Mixtral 8x7B, Gemma2 9B (Ultra-fast inference)
+- **Together AI** - Llama 3.1 models, Mixtral variants
+- **Mistral AI** - Mistral Large/Medium/Small, Codestral
+- **Hugging Face** - Llama 3.1, CodeLlama, WizardCoder
+- **DeepSeek AI** - DeepSeek Chat/Coder/Math
+- **Fireworks AI** - Llama 3.1 models, Mixtral variants
+- **OpenRouter** - Access to multiple models through one API
+
+### Local Providers
+- **Ollama** - Run models locally (Llama 3.1, CodeLlama, DeepSeek Coder, etc.)
 
 ## Roadmap
 
@@ -48,23 +68,55 @@
    git clone https://github.com/ntegrals/december
    ```
 
-2. Get an API Key from any OpenAI sdk compatible provider (e.g. OpenAI, Claude, Ollama, OpenRouter, etc.) and set it in the `config.ts` file.
+2. Configure your AI provider in the `config.ts` file
 
-   The start.sh script will automatically copy over the file into the backend folder.
+   December supports multiple AI providers. Choose your preferred provider and configure it:
 
-   I highly recommend using Sonnet-4 from Anthropic as it is the best coding model available right now.
-
-   ```sh
-    baseUrl: "https://openrouter.ai/api/v1",
-
-    apiKey:
-      "sk-...",
-
-    model: "anthropic/claude-sonnet-4",
-    temperature: 0.7,
+   ```typescript
+   export const config = {
+     aiSdk: {
+       // Choose your provider: 'openai', 'anthropic', 'google', 'groq', 'together', 'mistral', 'huggingface', 'deepseek', 'fireworks', 'openrouter', 'ollama'
+       provider: "anthropic",
+       
+       // The configuration will automatically use the selected provider's settings
+       temperature: 0.7,
+       maxTokens: 4096,
+     },
+   };
    ```
 
-3. Install docker (Docker Desktop is the easiest way to get started)
+   Then update the API key for your chosen provider in the `AI_PROVIDERS` configuration:
+
+   **For Anthropic (Recommended):**
+   ```typescript
+   anthropic: {
+     apiKey: "sk-ant-...", // Replace with your Anthropic API key
+   }
+   ```
+
+   **For OpenAI:**
+   ```typescript
+   openai: {
+     apiKey: "sk-...", // Replace with your OpenAI API key
+   }
+   ```
+
+   **For Groq (Fast & Free tier available):**
+   ```typescript
+   groq: {
+     apiKey: "gsk_...", // Replace with your Groq API key
+   }
+   ```
+
+   **For Ollama (Local, no API key needed):**
+   ```typescript
+   // Just set provider to "ollama" - no API key required
+   provider: "ollama"
+   ```
+
+   **For other providers:** Update the corresponding API key in the `AI_PROVIDERS` object.
+
+3. Install Docker
 
    - [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
    - [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
@@ -84,9 +136,22 @@
 
    You can now start building your applications with December! 🥳
 
-<!-- ## Demo
+## AI Provider Recommendations
 
-You can test the December here: [https://december.ai](https://december.ai) -->
+### For Best Code Quality
+- **Anthropic Claude 3.5 Sonnet** - Excellent at following instructions and generating clean code
+- **OpenAI GPT-4o** - Great overall performance with good coding capabilities
+
+### For Speed
+- **Groq** - Ultra-fast inference with Llama models (free tier available)
+- **Fireworks AI** - Fast inference with competitive pricing
+
+### For Privacy/Local Use
+- **Ollama** - Run models completely locally, no data leaves your machine
+
+### For Cost-Effectiveness
+- **OpenRouter** - Access to multiple models with competitive pricing
+- **Together AI** - Good performance at lower costs
 
 ## Motivation
 
@@ -101,10 +166,11 @@ I would love for this repo to become the go-to place for people who want to run 
 Building applications shouldn't require expensive subscriptions or sacrificing your privacy. December gives you the power of platforms like Loveable, Replit, and Bolt without the downsides:
 
 - **Full Control & Privacy** - Your code, ideas, and projects never leave your machine. No cloud storage, no data mining, no vendor lock-in
-- **Your API Keys, Your Costs** - Use your own OpenAI API key and pay only for what you use. No monthly subscriptions or usage limits imposed by third parties
+- **Your API Keys, Your Costs** - Use your own API keys and pay only for what you use. No monthly subscriptions or usage limits imposed by third parties
 - **Complete Feature Access** - No paywalls, premium tiers, or artificial limitations. Every feature is available from day one
+- **Multiple AI Providers** - Choose from 11+ AI providers including local options like Ollama
 
-Most cloud-based AI development platforms charge $20-100+ per month while limiting your usage and storing your intellectual property on their servers. With December, a $5 OpenAI API credit can generate dozens of complete applications, and you keep full ownership of everything you create.
+Most cloud-based AI development platforms charge $20-100+ per month while limiting your usage and storing your intellectual property on their servers. With December, a $5 API credit can generate dozens of complete applications, and you keep full ownership of everything you create.
 
 The local-first approach means you can work offline, modify the platform itself, and never worry about service outages or policy changes affecting your projects. Your development environment evolves with your needs, not a company's business model.
 

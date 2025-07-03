@@ -19,7 +19,8 @@ export const ProjectPromptInterface = ({
   const [isCreatingFromPrompt, setIsCreatingFromPrompt] = useState(false);
   const [showCommunityDropdown, setShowCommunityDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Claude Sonnet 4");
+  const [selectedModel, setSelectedModel] = useState("Claude 3.5 Sonnet");
+  const [selectedProvider, setSelectedProvider] = useState("Anthropic");
   const router = useRouter();
 
   const handlePromptSubmit = async () => {
@@ -67,15 +68,71 @@ export const ProjectPromptInterface = ({
     "Django",
   ];
 
-  const modelOptions = ["Claude Sonnet 4"];
+  const aiProviders = [
+    {
+      name: "OpenAI",
+      models: ["GPT-4o", "GPT-4o Mini", "GPT-4 Turbo", "GPT-3.5 Turbo", "o1-preview", "o1-mini"]
+    },
+    {
+      name: "Anthropic",
+      models: ["Claude 3.5 Sonnet", "Claude 3.5 Haiku", "Claude 3 Opus", "Claude 3 Sonnet", "Claude 3 Haiku"]
+    },
+    {
+      name: "Google AI",
+      models: ["Gemini 1.5 Pro", "Gemini 1.5 Flash", "Gemini 1.0 Pro"]
+    },
+    {
+      name: "Groq",
+      models: ["Llama 3.1 405B", "Llama 3.1 70B", "Llama 3.1 8B", "Mixtral 8x7B", "Gemma2 9B"]
+    },
+    {
+      name: "Together AI",
+      models: ["Llama 3.1 405B Turbo", "Llama 3.1 70B Turbo", "Llama 3.1 8B Turbo", "Mixtral 8x7B"]
+    },
+    {
+      name: "Mistral AI",
+      models: ["Mistral Large", "Mistral Medium", "Mistral Small", "Codestral"]
+    },
+    {
+      name: "Hugging Face",
+      models: ["Llama 3.1 70B", "CodeLlama 34B", "WizardCoder 34B"]
+    },
+    {
+      name: "DeepSeek AI",
+      models: ["DeepSeek Chat", "DeepSeek Coder", "DeepSeek Math"]
+    },
+    {
+      name: "Fireworks AI",
+      models: ["Llama 3.1 405B", "Llama 3.1 70B", "Llama 3.1 8B", "Mixtral 8x7B"]
+    },
+    {
+      name: "OpenRouter",
+      models: ["Claude 3.5 Sonnet", "GPT-4o", "Llama 3.1 405B", "Gemini Pro 1.5"]
+    },
+    {
+      name: "Ollama (Local)",
+      models: ["Llama 3.1 405B", "Llama 3.1 70B", "Llama 3.1 8B", "CodeLlama 34B", "DeepSeek Coder"]
+    }
+  ];
+
+  const currentProviderModels = aiProviders.find(p => p.name === selectedProvider)?.models || [];
 
   const handleCommunitySelect = (option: string) => {
     onTemplateChange(option);
     setShowCommunityDropdown(false);
   };
 
-  const handleModelSelect = (option: string) => {
-    setSelectedModel(option);
+  const handleProviderSelect = (provider: string) => {
+    setSelectedProvider(provider);
+    const providerModels = aiProviders.find(p => p.name === provider)?.models || [];
+    if (providerModels.length > 0) {
+      setSelectedModel(providerModels[0]);
+    }
+    setShowModelDropdown(false);
+  };
+
+  const handleModelSelect = (model: string) => {
+    setSelectedModel(model);
     setShowModelDropdown(false);
   };
 
@@ -183,7 +240,10 @@ export const ProjectPromptInterface = ({
                           setShowCommunityDropdown(false);
                         }}
                       >
-                        <span>{selectedModel}</span>
+                        <span className="text-blue-400">🤖</span>
+                        <span>{selectedProvider}</span>
+                        <span className="text-gray-500">•</span>
+                        <span className="text-xs">{selectedModel}</span>
                         <svg
                           height="12"
                           strokeLinejoin="round"
@@ -203,15 +263,29 @@ export const ProjectPromptInterface = ({
                       </button>
 
                       {showModelDropdown && (
-                        <div className="absolute top-full left-0 mt-2 w-40 bg-gray-900/90 backdrop-blur-xl border border-gray-600/30 rounded-lg shadow-xl z-50 bg-gradient-to-br from-white/[0.08] to-white/[0.02]">
-                          {modelOptions.map((option) => (
-                            <button
-                              key={option}
-                              onClick={() => handleModelSelect(option)}
-                              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/10 first:rounded-t-lg last:rounded-b-lg transition-all duration-200 cursor-pointer"
-                            >
-                              {option}
-                            </button>
+                        <div className="absolute top-full left-0 mt-2 w-80 bg-gray-900/90 backdrop-blur-xl border border-gray-600/30 rounded-lg shadow-xl z-50 bg-gradient-to-br from-white/[0.08] to-white/[0.02] max-h-96 overflow-y-auto">
+                          {aiProviders.map((provider) => (
+                            <div key={provider.name} className="border-b border-gray-700/30 last:border-b-0">
+                              <div className="px-3 py-2 bg-gray-800/30 text-xs font-medium text-gray-400 uppercase tracking-wide">
+                                {provider.name}
+                              </div>
+                              {provider.models.map((model) => (
+                                <button
+                                  key={`${provider.name}-${model}`}
+                                  onClick={() => {
+                                    handleProviderSelect(provider.name);
+                                    handleModelSelect(model);
+                                  }}
+                                  className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 cursor-pointer ${
+                                    selectedProvider === provider.name && selectedModel === model
+                                      ? "bg-blue-500/20 text-blue-300 border-l-2 border-blue-400"
+                                      : "text-gray-300 hover:text-white hover:bg-white/10"
+                                  }`}
+                                >
+                                  {model}
+                                </button>
+                              ))}
+                            </div>
                           ))}
                         </div>
                       )}
