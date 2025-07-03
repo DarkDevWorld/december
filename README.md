@@ -32,6 +32,7 @@
     ✅ Real-time chat assistant for development help
     ✅ Project export and deployment capabilities
     ✅ Multiple AI provider support (OpenAI, Anthropic, Google, Groq, and more)
+    ✅ Works with both npm and Bun package managers
 
 ## Supported AI Providers
 
@@ -147,8 +148,35 @@ December supports multiple AI providers, giving you the flexibility to choose th
 
 4. Run the start script to set up the environment
 
+   **Option A: Using the start script (automatically detects npm/bun):**
    ```sh
    sh start.sh
+   ```
+
+   **Option B: Manual setup with npm:**
+   ```sh
+   # Backend
+   cd backend
+   npm install
+   npm run dev
+
+   # Frontend (in another terminal)
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+   **Option C: Manual setup with Bun (faster):**
+   ```sh
+   # Backend
+   cd backend
+   bun install
+   bun dev
+
+   # Frontend (in another terminal)
+   cd frontend
+   bun install
+   bun dev
    ```
 
 5. The application will start in development mode, and you can access it at [http://localhost:3000](http://localhost:3000).
@@ -156,6 +184,23 @@ December supports multiple AI providers, giving you the flexibility to choose th
    The backend will run on port 4000, and the frontend will run on port 3000.
 
    You can now start building your applications with December! 🥳
+
+## Package Manager Support
+
+December works with both **npm** and **Bun**:
+
+### Using npm (Standard)
+- ✅ Works on all systems
+- ✅ Stable and reliable
+- ✅ Wide compatibility
+
+### Using Bun (Recommended for speed)
+- ⚡ 3-10x faster installation
+- ⚡ Faster development server startup
+- ⚡ Built-in TypeScript support
+- 📦 Install from [bun.sh](https://bun.sh)
+
+The start script automatically detects which package manager you have installed and uses the appropriate one.
 
 ## AI Provider Recommendations
 
@@ -196,6 +241,11 @@ If you see an error like "API key required for provider 'anthropic' but not conf
 3. Verify it's running: `ollama list`
 4. Set provider to "ollama" in config.ts
 
+### Package Manager Issues
+- **npm**: Make sure you have Node.js 18+ installed
+- **Bun**: Install from [bun.sh](https://bun.sh) for better performance
+- **Mixed usage**: Don't mix npm and bun in the same project
+
 ## Motivation
 
 AI-powered development platforms have revolutionized how we build applications. They allow developers to go from idea to working application in seconds, but most solutions are closed-source or require expensive subscriptions.
@@ -214,6 +264,7 @@ Building applications shouldn't require expensive subscriptions or complex local
 - **Complete Feature Access** - No paywalls, premium tiers, or artificial limitations
 - **Multiple AI Providers** - Choose from 11+ AI providers including local options like Ollama
 - **Live Collaboration** - Share your CodeSandbox projects easily with others
+- **Package Manager Flexibility** - Works with both npm and Bun
 
 Most cloud-based AI development platforms charge $20-100+ per month while limiting your usage. With December, a $5 API credit can generate dozens of complete applications, and you can share and collaborate on them instantly through CodeSandbox.
 
