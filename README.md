@@ -70,51 +70,76 @@ December supports multiple AI providers, giving you the flexibility to choose th
 
 2. Configure your AI provider in the `config.ts` file
 
-   December supports multiple AI providers. Choose your preferred provider and configure it:
+   December supports multiple AI providers. You have several options:
+
+   ### Option 1: Use Ollama (Local, No API Key Required) - Recommended for Getting Started
 
    ```typescript
    export const config = {
      aiSdk: {
-       // Choose your provider: 'openai', 'anthropic', 'google', 'groq', 'together', 'mistral', 'huggingface', 'deepseek', 'fireworks', 'openrouter', 'ollama'
-       provider: "anthropic",
-       
-       // The configuration will automatically use the selected provider's settings
-       temperature: 0.7,
-       maxTokens: 4096,
+       provider: "ollama", // No API key needed!
      },
    };
    ```
 
-   Then update the API key for your chosen provider in the `AI_PROVIDERS` configuration:
+   **To use Ollama:**
+   1. Install Ollama from [https://ollama.ai](https://ollama.ai)
+   2. Run: `ollama pull llama3.1:8b` (or any other model)
+   3. Start December - it will work immediately!
 
-   **For Anthropic (Recommended):**
+   ### Option 2: Use Cloud Providers (Requires API Key)
+
+   **For Anthropic (Best Code Quality):**
    ```typescript
+   // In config.ts, update the anthropic provider:
    anthropic: {
-     apiKey: "sk-ant-...", // Replace with your Anthropic API key
+     apiKey: "sk-ant-your-api-key-here", // Replace with your actual API key
    }
+
+   // Then set the provider:
+   export const config = {
+     aiSdk: {
+       provider: "anthropic",
+     },
+   };
    ```
 
    **For OpenAI:**
    ```typescript
+   // In config.ts, update the openai provider:
    openai: {
-     apiKey: "sk-...", // Replace with your OpenAI API key
+     apiKey: "sk-your-api-key-here", // Replace with your actual API key
    }
+
+   // Then set the provider:
+   export const config = {
+     aiSdk: {
+       provider: "openai",
+     },
+   };
    ```
 
    **For Groq (Fast & Free tier available):**
    ```typescript
+   // In config.ts, update the groq provider:
    groq: {
-     apiKey: "gsk_...", // Replace with your Groq API key
+     apiKey: "gsk_your-api-key-here", // Replace with your actual API key
    }
+
+   // Then set the provider:
+   export const config = {
+     aiSdk: {
+       provider: "groq",
+     },
+   };
    ```
 
-   **For Ollama (Local, no API key needed):**
-   ```typescript
-   // Just set provider to "ollama" - no API key required
-   provider: "ollama"
-   ```
-
-   **For other providers:** Update the corresponding API key in the `AI_PROVIDERS` object.
+   ### Getting API Keys:
+   - **Anthropic**: [https://console.anthropic.com](https://console.anthropic.com)
+   - **OpenAI**: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   - **Groq**: [https://console.groq.com](https://console.groq.com)
+   - **Google AI**: [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
+   - **OpenRouter**: [https://openrouter.ai/keys](https://openrouter.ai/keys)
 
 3. Install Docker
 
@@ -138,6 +163,9 @@ December supports multiple AI providers, giving you the flexibility to choose th
 
 ## AI Provider Recommendations
 
+### For Getting Started (No API Key Required)
+- **Ollama** - Run models completely locally, no data leaves your machine, no costs
+
 ### For Best Code Quality
 - **Anthropic Claude 3.5 Sonnet** - Excellent at following instructions and generating clean code
 - **OpenAI GPT-4o** - Great overall performance with good coding capabilities
@@ -152,6 +180,25 @@ December supports multiple AI providers, giving you the flexibility to choose th
 ### For Cost-Effectiveness
 - **OpenRouter** - Access to multiple models with competitive pricing
 - **Together AI** - Good performance at lower costs
+
+## Troubleshooting
+
+### "API key required" Error
+If you see an error like "API key required for provider 'anthropic' but not configured":
+
+1. Open `config.ts`
+2. Find your chosen provider in the `AI_PROVIDERS` object
+3. Replace the empty `apiKey: ""` with your actual API key
+4. Or switch to Ollama which doesn't require an API key:
+   ```typescript
+   provider: "ollama"
+   ```
+
+### Ollama Setup
+1. Install Ollama: [https://ollama.ai](https://ollama.ai)
+2. Pull a model: `ollama pull llama3.1:8b`
+3. Verify it's running: `ollama list`
+4. Set provider to "ollama" in config.ts
 
 ## Motivation
 

@@ -14,7 +14,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   openai: {
     name: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
-    apiKey: "sk-...", // Replace with your OpenAI API key
+    apiKey: "", // Add your OpenAI API key here: sk-...
     models: [
       "gpt-4o",
       "gpt-4o-mini",
@@ -30,7 +30,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   anthropic: {
     name: "Anthropic",
     baseUrl: "https://api.anthropic.com/v1",
-    apiKey: "sk-ant-...", // Replace with your Anthropic API key
+    apiKey: "", // Add your Anthropic API key here: sk-ant-...
     models: [
       "claude-3-5-sonnet-20241022",
       "claude-3-5-haiku-20241022",
@@ -44,7 +44,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   openrouter: {
     name: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    apiKey: "sk-or-v1-...", // Replace with your OpenRouter API key
+    apiKey: "", // Add your OpenRouter API key here: sk-or-v1-...
     models: [
       "anthropic/claude-3.5-sonnet",
       "anthropic/claude-3-opus",
@@ -61,7 +61,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   google: {
     name: "Google AI",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKey: "AIza...", // Replace with your Google AI API key
+    apiKey: "", // Add your Google AI API key here: AIza...
     models: [
       "gemini-1.5-pro",
       "gemini-1.5-flash",
@@ -74,7 +74,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   groq: {
     name: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    apiKey: "gsk_...", // Replace with your Groq API key
+    apiKey: "", // Add your Groq API key here: gsk_...
     models: [
       "llama-3.1-405b-reasoning",
       "llama-3.1-70b-versatile",
@@ -88,7 +88,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   together: {
     name: "Together AI",
     baseUrl: "https://api.together.xyz/v1",
-    apiKey: "...", // Replace with your Together AI API key
+    apiKey: "", // Add your Together AI API key here
     models: [
       "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
       "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
@@ -102,7 +102,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   mistral: {
     name: "Mistral AI",
     baseUrl: "https://api.mistral.ai/v1",
-    apiKey: "...", // Replace with your Mistral AI API key
+    apiKey: "", // Add your Mistral AI API key here
     models: [
       "mistral-large-latest",
       "mistral-medium-latest",
@@ -116,7 +116,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   huggingface: {
     name: "Hugging Face",
     baseUrl: "https://api-inference.huggingface.co/v1",
-    apiKey: "hf_...", // Replace with your Hugging Face API key
+    apiKey: "", // Add your Hugging Face API key here: hf_...
     models: [
       "meta-llama/Meta-Llama-3.1-70B-Instruct",
       "microsoft/DialoGPT-medium",
@@ -130,7 +130,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   deepseek: {
     name: "DeepSeek AI",
     baseUrl: "https://api.deepseek.com/v1",
-    apiKey: "sk-...", // Replace with your DeepSeek API key
+    apiKey: "", // Add your DeepSeek API key here: sk-...
     models: [
       "deepseek-chat",
       "deepseek-coder",
@@ -142,7 +142,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
   fireworks: {
     name: "Fireworks AI",
     baseUrl: "https://api.fireworks.ai/inference/v1",
-    apiKey: "fw-...", // Replace with your Fireworks AI API key
+    apiKey: "", // Add your Fireworks AI API key here: fw-...
     models: [
       "accounts/fireworks/models/llama-v3p1-405b-instruct",
       "accounts/fireworks/models/llama-v3p1-70b-instruct",
@@ -178,7 +178,7 @@ export const AI_PROVIDERS: Record<string, AIProvider> = {
 export const config = {
   aiSdk: {
     // Choose your provider: 'openai', 'anthropic', 'openrouter', 'google', 'groq', 'together', 'mistral', 'huggingface', 'deepseek', 'fireworks', 'ollama'
-    provider: "anthropic" as keyof typeof AI_PROVIDERS,
+    provider: "ollama" as keyof typeof AI_PROVIDERS, // Changed to ollama as default since it doesn't require API key
     
     // Get the configuration for the selected provider
     get baseUrl() {
@@ -224,15 +224,18 @@ export function validateProviderConfig(providerKey: keyof typeof AI_PROVIDERS): 
   const provider = AI_PROVIDERS[providerKey];
   
   if (!provider) {
-    console.error(`Provider "${providerKey}" not found`);
+    console.error(`❌ Provider "${providerKey}" not found`);
     return false;
   }
   
-  if (provider.requiresApiKey && (!provider.apiKey || provider.apiKey.includes("..."))) {
-    console.error(`API key required for provider "${providerKey}" but not configured`);
+  if (provider.requiresApiKey && (!provider.apiKey || provider.apiKey.trim() === "")) {
+    console.error(`❌ API key required for provider "${providerKey}" but not configured`);
+    console.error(`📝 Please add your API key to the config.ts file:`);
+    console.error(`   AI_PROVIDERS.${providerKey}.apiKey = "your-api-key-here"`);
     return false;
   }
   
+  console.log(`✅ Provider "${providerKey}" (${provider.name}) configured successfully`);
   return true;
 }
 
